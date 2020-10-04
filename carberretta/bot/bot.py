@@ -51,11 +51,7 @@ class Bot(commands.Bot):
         print(f"running bot...")
         super().run(Config.TOKEN, reconnect=True)
 
-    # async def close(self):
-    #     print("closing on keyboard interrupt...")
-    #     await self.shutdown()
-
-    async def shutdown(self):
+    async def close(self):
         print("shutting down...")
         for cog in self.cogs.values():
             if hasattr(cog, "on_shutdown"):
@@ -67,7 +63,7 @@ class Bot(commands.Bot):
 
         hub = self.get_cog("Hub")
         await hub.stdout.send(f"Carberretta is shutting down. (Version {self.version})")
-        await self.logout()
+        await super().close()
 
     async def command_prefix(self, bot, message):
         return commands.when_mentioned_or(Config.PREFIX)(bot, message)
@@ -75,14 +71,19 @@ class Bot(commands.Bot):
     async def process_comamnds(self, message):
         ctx = await self.get_context(message, cls=commands.Context)
 
-        if ctx.command is not None:
-            if self.ready.bot:
-                await self.invoke(ctx)
+        if ctx.command is None:
+            return
 
-            else:
-                await ctx.send(
-                    "Carberretta is not ready to receive commands. Try again in a few seconds.", delete_after=5,
-                )
+        if not self.ready.bot:
+            return await ctx.send(
+                "Carberretta is not ready to receive commands. Try again in a few seconds.", delete_after=5
+            )
+
+        support = self.get_cog("Support")
+        if ctx.channel in [sc.channel for sc in support.available_channels] and ctx.command.name != "open":
+            return await ctx.message.delete()
+
+        await self.invoke(ctx)
 
     async def on_error(self, err, *args, **kwargs):
         async with self.session.post("https://mystb.in/documents", data=traceback.format_exc()) as response:
