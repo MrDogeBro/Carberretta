@@ -1,10 +1,6 @@
 [tool.poetry]
 name = "carberra-carberretta"
-<<<<<<< HEAD
-version = "1.0.3"
-=======
 version = "1.0.4"
->>>>>>> 5dfeecc006969840c3262ee5d2d394c57c804839
 description = "Discord bot designed to handle specific tasks in the Carberra Tutorials server."
 
 license = "BSD-3-Clause"
@@ -26,14 +22,10 @@ psutil = "^5.7.0"
 pygount = "^1.2.4"
 python-dotenv = "^0.13.0"
 toml = "^0.10.1"
-content_filter = "^1.1.0"
-content-filter = "^1.1.0"
 
 [tool.poetry.dev-dependencies]
 mypy = "^0.782"
-pylint = "^2.6.0"
-yapf = "^0.30.0"
-black = "^20.8b1"
+black = "^19.10b0"
 
 [tool.black]
 line-length = 119
