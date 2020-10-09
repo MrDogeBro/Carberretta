@@ -376,7 +376,7 @@ class Support(commands.Cog):
             message = sc.previous_message
 
         if message is None:
-            return await ctx.send("No case could not be reopened.")
+            return await ctx.send("No case could be reopened.")
 
         await self.open_case(sc, message)
 
@@ -443,7 +443,9 @@ class Support(commands.Cog):
     async def binify_command(self, ctx: commands.Context, *, raw: t.Union[discord.Message, str]):
         async with ctx.typing():
             if isinstance(raw, discord.Message):
-                await ctx.send(f"{string.possessive(raw.author)} message:\n\n>>> {await string.binify(self.bot.session, raw.clean_content)}")
+                await ctx.send(
+                    f"{string.possessive(raw.author)} message:\n\n>>> {await string.binify(self.bot.session, raw.clean_content)}"
+                )
                 await raw.delete()
             else:
                 await ctx.send(f"{ctx.author.mention}: {await string.binify(self.bot.session, raw)}")
