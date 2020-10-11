@@ -16,17 +16,8 @@ from carberretta.utils import DEFAULT_EMBED_COLOUR, chron, menu
 
 
 class SearchMenu(menu.NumberedSelectionMenu):
-    def __init__(self, ctx, data):
+    def __init__(self, ctx, data, results, pagemap):
         self.data = data
-        pagemap = {
-            "title": "Search results",
-            "description": f"{data['pageInfo']['totalResults']} result(s).",
-            "color": DEFAULT_EMBED_COLOUR,
-            "author": {"name": "Query"},
-            "footer": {"text": f"Requested by {ctx.author.display_name}", "icon_url": f"{ctx.author.avatar_url}",},
-        }
-        results = [f"{item['snippet']['title']}" for item in data["items"]]
-
         super().__init__(ctx, results, pagemap)
 
     async def start(self):
@@ -42,39 +33,35 @@ class SearchMenu(menu.NumberedSelectionMenu):
 
                 async with self.ctx.bot.session.get(url) as response:
                     if response.status != 200:
-                        return await self.message.edit(content=f"The YouTube API returned {response.status} {response.reason}.", embed=None)
+                        return await self.message.edit(
+                            content=f"The YouTube API returned {response.status} {response.reason}.", embed=None
+                        )
 
                     data = (await response.json())["items"][0]
 
-                if (
-                    match := re.match(
-                        r"PT(([0-9]{1,2})H)?(([0-9]{1,2})M)?(([0-9]{1,2})S)", data["contentDetails"]["duration"]
-                    )
-                ) is not None:
-                    duration = chron.short_delta(
-                        dt.timedelta(
-                            seconds=(int(match.group(2) or 0) * 3600)
-                            + (int(match.group(4) or 0) * 60)
-                            + int(match.group(6))
-                        )
-                    )
-                else:
-                    duration = "-"
+                duration = self.ctx.bot.get_cog("YouTube").get_duration_from(data["contentDetails"]["duration"])
                 published_at = chron.from_iso(data["snippet"]["publishedAt"][:-1])
 
                 await self.message.edit(
                     embed=discord.Embed.from_dict(
                         {
-                            "title": item['snippet']['title'],
-                            "description": f"Click [here](https://youtube.com/watch?v={item['id']['videoId']}) to watch.",
+                            "title": item["snippet"]["title"],
+                            "description": f"Click [here](https://youtube.com/watch?v={item['id']['videoId']}) to watch. Use `{Config.PREFIX}yt video {item['id']['videoId']}` for detailed video information.",
                             "color": DEFAULT_EMBED_COLOUR,
                             "author": {"name": "Query"},
-                            "footer": {"text": f"Requested by {self.ctx.author.display_name}", "icon_url": f"{self.ctx.author.avatar_url}",},
+                            "footer": {
+                                "text": f"Requested by {self.ctx.author.display_name}",
+                                "icon_url": f"{self.ctx.author.avatar_url}",
+                            },
                             "fields": [
                                 {"name": "Published on", "value": f"{chron.long_date(published_at)}", "inline": True},
                                 {"name": "Duration", "value": duration, "inline": True},
-                                {"name": "Views", "value": f"{int(data['statistics']['viewCount']):,}", "inline": True},
-                            ]
+                                {
+                                    "name": "Views",
+                                    "value": f"{int(data['statistics']['viewCount']):,}",
+                                    "inline": True,
+                                },
+                            ],
                         }
                     )
                 )
@@ -88,6 +75,22 @@ class YouTube(commands.Cog):
     async def on_ready(self) -> None:
         if not self.bot.ready.booted:
             self.bot.ready.up(self)
+
+    def get_duration(self, duration, long=False):
+        if (
+            match := re.match(r"PT(([0-9]{1,})D)?(([0-9]{1,2})H)?(([0-9]{1,2})M)?(([0-9]{1,2})S)?", duration)
+        ) is not None:
+            delta_func = chron.long_delta if long else chron.short_delta
+            return delta_func(
+                dt.timedelta(
+                    seconds=(int(match.group(2) or 0) * 86400)
+                    + (int(match.group(4) or 0) * 3600)
+                    + (int(match.group(6) or 0) * 60)
+                    + (int(match.group(8) or 0))
+                )
+            )
+        else:
+            return "-"
 
     @commands.group(name="yt", invoke_without_command=True)
     async def yt_group(self, ctx: commands.Context) -> None:
@@ -118,7 +121,7 @@ class YouTube(commands.Cog):
                             "icon_url": f"{ctx.author.avatar_url}",
                         },
                         "fields": [
-                            {"name": "Subscribers", "value": f"{sub_count:,} - {sub_count+100:,}", "inline": False},
+                            {"name": "Subscribers", "value": f"About {sub_count:,}", "inline": False},
                             {"name": "Views", "value": f"{int(data['statistics']['viewCount']):,}", "inline": False},
                             {"name": "Videos", "value": f"{int(data['statistics']['videoCount']):,}", "inline": False},
                         ],
@@ -189,7 +192,19 @@ class YouTube(commands.Cog):
 
                 data = await response.json()
 
-        await SearchMenu(ctx, data).start()
+        pagemap = {
+            "title": "Search results",
+            "description": f"{data['pageInfo']['totalResults']} result(s).",
+            "color": DEFAULT_EMBED_COLOUR,
+            "author": {"name": "Query"},
+            "footer": {"text": f"Requested by {ctx.author.display_name}", "icon_url": f"{ctx.author.avatar_url}",},
+        }
+        results = [f"{item['snippet']['title']}" for item in data["items"]]
+
+        if not results:
+            return await ctx.send("No results found. Are you sure Carberra made a video on that?")
+
+        await SearchMenu(ctx, data, results, pagemap).start()
 
     @yt_group.command(name="video")
     async def yt_video_command(self, ctx: commands.Context, id_: str) -> None:
@@ -209,20 +224,7 @@ class YouTube(commands.Cog):
                 published_at = chron.from_iso(data["liveStreamingDetails"]["actualStartTime"][:-1])
             else:
                 published_at = chron.from_iso(data["snippet"]["publishedAt"][:-1])
-            if (
-                match := re.match(
-                    r"PT(([0-9]{1,2})H)?(([0-9]{1,2})M)?(([0-9]{1,2})S)", data["contentDetails"]["duration"]
-                )
-            ) is not None:
-                duration = chron.short_delta(
-                    dt.timedelta(
-                        seconds=(int(match.group(2) or 0) * 3600)
-                        + (int(match.group(4) or 0) * 60)
-                        + int(match.group(6))
-                    )
-                )
-            else:
-                duration = "-"
+            duration = self.get_duration(data["contentDetails"]["duration"])
 
             await ctx.send(
                 embed=discord.Embed.from_dict(
@@ -235,6 +237,7 @@ class YouTube(commands.Cog):
                             "text": f"Requested by {ctx.author.display_name}",
                             "icon_url": f"{ctx.author.avatar_url}",
                         },
+                        "image": {"url": data["snippet"]["thumbnails"]["maxres"]["url"]},
                         "fields": [
                             {"name": "Duration", "value": duration, "inline": True},
                             {"name": "Views", "value": f"{int(data['statistics']['viewCount']):,}", "inline": True},
