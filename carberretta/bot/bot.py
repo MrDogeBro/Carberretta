@@ -166,6 +166,12 @@ class Bot(commands.Bot):
         elif isinstance(exc, commands.CheckFailure):
             await ctx.send(f"There was an unhandled command check error (probably missing privileges).")
 
+        elif isinstance(exc, utils.errors.WordAlreadyAdded):
+            await ctx.send(f"The word `{exc.found}` is already in the filter.")
+
+        elif isinstance(exc, utils.errors.WordNotFound):
+            await ctx.send(f"The word `{exc.found}` was not found in the filter.")
+
         # Non-command errors.
         elif (original := getattr(exc, "original", None)) is not None:
             if isinstance(original, discord.HTTPException):
