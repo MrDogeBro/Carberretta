@@ -11,19 +11,19 @@ Handles automatic mod systems:
 """
 
 import datetime as dt
+import json
 import string
 import typing as t
-import json
-import aiofiles
 from collections import defaultdict
-from content_filter import checkMessageList, useCustomListFile, updateListFromFile
 from os import path
 
+import aiofiles
 import discord
+from content_filter import checkMessageList, useCustomListFile, updateListFromFile
 from discord.ext import commands
 
 from carberretta import Config
-from carberretta.utils import chron, DEFAULT_EMBED_COLOUR
+from carberretta.utils import DEFAULT_EMBED_COLOUR, chron
 from carberretta.utils.emoji import UNICODE_EMOJI
 from carberretta.utils.errors import WordAlreadyAdded, WordNotFound
 from carberretta.utils.menu import MultiPageMenu
@@ -109,7 +109,7 @@ class Mod(commands.Cog):
                     filter_result['found'].append(word['word'] + '\n')
                     filter_result['count'].append(str(word['count']) + '\n')
 
-                warning_msg = await message.channel.send(f"{message.author.mention} please do not use offensive language!")
+                warning_msg = await message.channel.send(f"{message.author.mention}, please do not use offensive language.")
 
                 member = self.bot.guild.get_member(message.author.id)
 
